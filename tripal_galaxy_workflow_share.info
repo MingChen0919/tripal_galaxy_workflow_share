@@ -1,0 +1,7 @@
+name = Tripal Galaxy Workflow Share
+description = Enable users to share Tripal Galaxy workflows among Tripal sites.
+core = 7.x
+
+project = tripal_galaxy_workflow_share
+package = Tripal Extensions
+dependencies[] = tripal_galaxy

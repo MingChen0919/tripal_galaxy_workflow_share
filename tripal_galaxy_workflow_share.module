@@ -1,0 +1,116 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function tripal_galaxy_workflow_share_menu_alter(&$items) {
+  $items['node/%webform_menu/webform/export-workflow'] = [
+    'title' => 'Export',
+    'page callback' => 'export_tripal_galaxy_workflow',
+    'page arguments' => [1],
+    'access arguments' => ['administer galaxy'],
+    'weight' => 5,
+    'type' => MENU_LOCAL_TASK,
+  ];
+  $items['node/%webform_menu/webform/import-workflow'] = [
+    'title' => 'Import',
+    'page callback' => 'import_tripal_galaxy_workflow',
+    'page arguments' => [1],
+    'access arguments' => ['administer galaxy'],
+    'weight' => 7,
+    'type' => MENU_LOCAL_TASK,
+  ];
+}
+
+
+//function tripal_galaxy_workflow_share_form_webform_components_form_alter(&$form, &$form_state) {
+//  dpm($form);
+//  dpm($form_state);
+//  $form['actions']['export'] = [
+//    '#type' => 'submit',
+//    '#value' => 'Export workflow',
+//    '#submit' => ['export_tripal_galaxy_workflow'],
+//  ];
+//}
+
+
+function export_tripal_galaxy_workflow($node) {
+
+  $webform = json_encode($node->webform);
+
+  drupal_add_http_header('Content-Type', 'application/json');
+  drupal_add_http_header('Content-Disposition', 'attachment; filename="webform-' . $node->type . '-' . $node->nid . '.json";');
+  drupal_add_http_header('Content-Length', sprintf('%u', strlen($webform)));
+
+  print($webform);
+
+  exit();
+
+}
+
+
+function import_tripal_galaxy_workflow($node) {
+//  $workflow_id = $node->webform['components'][1]['extra']['workflow_id'];
+  $workflow_and_node_ids = [
+//    'workflow_id' => $workflow_id,
+    'nid' => $node->nid,
+  ];
+  $build_page = [
+    'json_markup' => [
+      '#markup' => t('Upload an exported Tripal Galaxy webform file. The file should be in JSON format.')
+    ],
+    'form' => drupal_get_form('galaxy_webform_import_form', $workflow_and_node_ids),
+  ];
+
+  return $build_page;
+}
+
+
+function galaxy_webform_import_form($form, &$form_state, $workflow_and_node_ids) {
+  $form['workflow_and_node_ids'] = [
+    '#type' => 'value',
+    '#value' => $workflow_and_node_ids,
+  ];
+  $form['upload'] = [
+    '#type' => 'managed_file',
+    '#upload_validators' => [
+      'file_validate_extensions' => ['json'],
+    ],
+  ];
+  $form['submit'] = [
+    '#type' => 'submit',
+    '#value' => 'Submit',
+  ];
+
+  return $form;
+}
+
+
+function galaxy_webform_import_form_submit($form, &$form_state) {
+//  $workflow_id = $form_state['values']['workflow_and_node_ids']['workflow_id'];
+  $nid = $form_state['values']['workflow_and_node_ids']['nid'];
+
+
+  $fid = $form_state['values']['upload'];
+  $uri = file_load($fid)->uri;
+  $webform_json = file_get_contents($uri);
+  $webform = json_decode($webform_json, TRUE);
+
+  // delete original webform components.
+  db_delete('webform_component')
+    ->condition('nid', $nid)
+    ->execute();
+  // insert new components from imported webform.
+//  $webform->components[1]->extra->workflow_id = $workflow_id;
+  foreach ($webform['components'] as $component) {
+
+
+    $component['nid'] = $nid;
+    $component['extra'] = serialize($component['extra']);
+    unset($component['page_num']);
+    db_insert('webform_component')
+      ->fields($component)
+      ->execute();
+  }
+}
+
